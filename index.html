@@ -945,6 +945,21 @@
             background-size: cover;
             background-position: center;
             filter: saturate(1.08);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .streetview-location-card-thumb.loading::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(120deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.08) 75%);
+            animation: thumb-shimmer 1.2s linear infinite;
+        }
+
+        @keyframes thumb-shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
 
         .streetview-location-card-title {

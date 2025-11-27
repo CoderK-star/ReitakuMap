@@ -1185,6 +1185,23 @@ function updateStreetViewInfoPanel() {
     carousel.innerHTML = '';
     const catalog = getStreetSequence();
 
+    const canLazyLoadThumbs = 'IntersectionObserver' in window;
+    const thumbObserver = canLazyLoadThumbs
+        ? new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                const target = entry.target;
+                const dataUrl = target.dataset.thumb;
+                if (dataUrl) {
+                    target.style.backgroundImage = `url("${dataUrl}")`;
+                    target.classList.remove('loading');
+                    delete target.dataset.thumb;
+                }
+                observer.unobserve(target);
+            });
+        }, { root: carousel, rootMargin: '120px 0px', threshold: 0.05 })
+        : null;
+
     catalog.forEach((spot) => {
         const card = document.createElement('button');
         card.type = 'button';
@@ -1193,8 +1210,15 @@ function updateStreetViewInfoPanel() {
         const thumb = document.createElement('div');
         thumb.className = 'streetview-location-card-thumb';
         const thumbUrl = getStreetThumbnail(spot);
-        if (thumbUrl) {
-            thumb.style.backgroundImage = `url("${thumbUrl.replace(/"/g, '\\"')}")`;
+        const sanitizedThumb = thumbUrl ? thumbUrl.replace(/"/g, '\"') : '';
+        if (sanitizedThumb) {
+            if (thumbObserver) {
+                thumb.dataset.thumb = sanitizedThumb;
+                thumb.classList.add('loading');
+                thumbObserver.observe(thumb);
+            } else {
+                thumb.style.backgroundImage = `url("${sanitizedThumb}")`;
+            }
         } else {
             thumb.style.background = 'linear-gradient(135deg, #1e3c72, #2a5298)';
         }
