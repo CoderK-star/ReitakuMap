@@ -319,7 +319,14 @@ function renderMarkersAndPanel() {
         const el = document.createElement('div');
         el.className = 'custom-marker';
         el.style.backgroundColor = color;
-        el.textContent = count;
+        const previewItem = items.find(hasStreetView) || items[0];
+        const thumbUrl = previewItem ? getStreetThumbnail(previewItem) : '';
+        if (thumbUrl) {
+            const sanitizedThumb = thumbUrl.replace(/"/g, '\\"');
+            el.style.backgroundImage = `linear-gradient(0deg, rgba(0,0,0,0.25), rgba(0,0,0,0.25)), url("${sanitizedThumb}")`;
+            el.style.backgroundSize = 'cover';
+            el.style.backgroundPosition = 'center';
+        }
         el.title = `${count}件の場所`;
 
         // Create marker
@@ -329,11 +336,7 @@ function renderMarkersAndPanel() {
 
         // Click handler: highlight with red ring and update panel
         el.addEventListener('click', () => {
-            if (selectedMarkerEl && selectedMarkerEl !== el) {
-                selectedMarkerEl.classList.remove('selected');
-            }
-            selectedMarkerEl = el;
-            el.classList.add('selected');
+            setSelectedMarker(el);
             // If mobile and panel is closed, open to 30%
             const isMobile = window.innerWidth <= 768;
             if (isMobile) {
@@ -342,8 +345,6 @@ function renderMarkersAndPanel() {
                     panelEl.classList.remove('closed');
                     panelEl.classList.remove('expanded');
                     panelEl.style.height = '30%';
-                    // Avoid basemap toggle collision when opening
-                    updateBasemapTogglePosition();
                 }
             }
             updatePanelWithItems(items);
@@ -366,11 +367,28 @@ function renderMarkersAndPanel() {
     fitMapToMarkers(filteredData);
 }
 
-function clearMarkerSelection() {
-    if (selectedMarkerEl) {
+function setSelectedMarker(element) {
+    if (selectedMarkerEl && selectedMarkerEl !== element) {
         selectedMarkerEl.classList.remove('selected');
-        selectedMarkerEl = null;
     }
+    selectedMarkerEl = element || null;
+    if (selectedMarkerEl) {
+        selectedMarkerEl.classList.add('selected');
+    }
+}
+
+function selectMarkerByCoordinates(lat, lon) {
+    if (!markers.length) return;
+    const tolerance = 1e-6;
+    const target = markers.find(marker => {
+        const position = marker.getLngLat();
+        return Math.abs(position.lat - lat) < tolerance && Math.abs(position.lng - lon) < tolerance;
+    });
+    setSelectedMarker(target ? target.getElement() : null);
+}
+
+function clearMarkerSelection() {
+    setSelectedMarker(null);
     lastMarkerItems = null;
     hideStreetViewPopup();
     updateSidePanel(getFilteredData());
@@ -388,7 +406,8 @@ function handleMapBackgroundClick(event) {
             return;
         }
     }
-    if (selectedMarkerEl) {
+    const hasPanelSelection = Array.isArray(lastMarkerItems) && lastMarkerItems.length > 0;
+    if (selectedMarkerEl || hasPanelSelection) {
         clearMarkerSelection();
     }
 }
@@ -423,7 +442,9 @@ function updatePanelWithItems(items) {
     const content = document.getElementById('panel-content');
     const count = document.getElementById('panel-count');
     
-    count.textContent = `このマーカーに${items.length}件の場所`;
+    if (count) {
+        count.textContent = `このマーカーに${items.length}件の場所`;
+    }
     content.innerHTML = '';
     lastMarkerItems = items;
 
@@ -524,6 +545,8 @@ function updatePanelWithItems(items) {
                 zoom: 18,
                 duration: 1000
             });
+
+            selectMarkerByCoordinates(item.lat, item.lon);
         });
 
         content.appendChild(itemEl);
@@ -535,7 +558,9 @@ function updateSidePanel(data) {
     const content = document.getElementById('panel-content');
     const count = document.getElementById('panel-count');
     
-    count.textContent = `${data.length}件の場所が見つかりました`;
+    if (count) {
+        count.textContent = `${data.length}件の場所が見つかりました`;
+    }
     content.innerHTML = '';
     if (!selectedMarkerEl) {
         lastMarkerItems = null;
@@ -640,6 +665,8 @@ function updateSidePanel(data) {
                 duration: 1000
             });
 
+            selectMarkerByCoordinates(item.lat, item.lon);
+
             // Find items at this location and update panel
             const filteredData = getFilteredData();
             const itemsAtLocation = filteredData.filter(d => 
@@ -734,9 +761,7 @@ function setupEventListeners() {
 
     // Mobile panel drag functionality
     setupMobilePanelDrag();
-    // Adjust basemap toggle initially and on resize
-    setTimeout(updateBasemapTogglePosition, 0);
-    window.addEventListener('resize', updateBasemapTogglePosition);
+    setupMinimapControls();
 
     const exitBtn = document.getElementById('streetview-exit-btn');
     if (exitBtn) exitBtn.addEventListener('click', exitStreetView);
@@ -746,6 +771,10 @@ function setupEventListeners() {
     if (prevBtn) prevBtn.addEventListener('click', () => navigateStreetView(-1));
     const nextBtn = document.getElementById('streetview-nav-next');
     if (nextBtn) nextBtn.addEventListener('click', () => navigateStreetView(1));
+    const zoomInBtn = document.getElementById('streetview-zoom-in');
+    if (zoomInBtn) zoomInBtn.addEventListener('click', () => adjustStreetViewZoom(-10));
+    const zoomOutBtn = document.getElementById('streetview-zoom-out');
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => adjustStreetViewZoom(10));
     const panelToggle = document.getElementById('streetview-panel-toggle');
     const infoPanel = document.getElementById('streetview-info-panel');
     if (panelToggle && infoPanel) {
@@ -766,28 +795,34 @@ function setupEventListeners() {
 function setupMobilePanelDrag() {
     const panel = document.getElementById('side-panel');
     const handle = document.getElementById('panel-drag-handle');
-    const panelContent = document.getElementById('panel-content');
-    
-    if (!handle) return;
+    if (!panel) return;
 
     let startY = 0;
     let startHeight = 0;
     let isDragging = false;
     const handleMinHeight = 48; // keep handle visible when closed
+    const dragZone = 72; // px zone from top that can initiate drag
 
-    const startDrag = (e) => {
+    const getTouchPoint = (e) => (e.type.includes('touch') ? e.touches[0] : e);
+
+    const withinDragZone = (point) => {
+        const rect = panel.getBoundingClientRect();
+        return point.clientY <= rect.top + dragZone;
+    };
+
+    const startDrag = (e, forced = false) => {
         if (window.innerWidth > 768) return; // Only on mobile
-        
+        const point = getTouchPoint(e);
+        if (!forced && !withinDragZone(point)) return;
+
         isDragging = true;
-        const touch = e.type.includes('touch') ? e.touches[0] : e;
-        startY = touch.clientY;
+        startY = point.clientY;
         startHeight = panel.offsetHeight;
-        
+
         document.body.style.userSelect = 'none';
         panel.style.transition = 'none';
-        
-        // Prevent default to avoid text selection
-        if (e.type === 'mousedown') {
+
+        if (e.cancelable) {
             e.preventDefault();
         }
     };
@@ -807,8 +842,6 @@ function setupMobilePanelDrag() {
         
         if (newHeight >= minHeight && newHeight <= maxHeight) {
             panel.style.height = `${newHeight}px`;
-            // Live adjust basemap toggle while dragging
-            updateBasemapTogglePosition();
         }
     };
 
@@ -836,20 +869,36 @@ function setupMobilePanelDrag() {
             panel.classList.remove('closed');
             panel.style.height = '30%';
         }
-        // Snap adjustment for basemap toggle
-        updateBasemapTogglePosition();
     };
 
     // Mouse events
-    handle.addEventListener('mousedown', startDrag);
+    if (handle) {
+        handle.addEventListener('mousedown', (e) => startDrag(e, true));
+        handle.addEventListener('touchstart', (e) => startDrag(e, true), { passive: false });
+        handle.addEventListener('click', () => {
+            if (isDragging || window.innerWidth > 768) return;
+            const isClosed = panel.classList.contains('closed') || panel.offsetHeight <= handleMinHeight + 2;
+            if (isClosed) {
+                panel.classList.remove('closed');
+                panel.classList.remove('expanded');
+                panel.style.height = '30%';
+            } else {
+                panel.classList.remove('expanded');
+                panel.classList.add('closed');
+                panel.style.height = `${handleMinHeight}px`;
+            }
+        });
+    }
+
+    panel.addEventListener('mousedown', startDrag);
     document.addEventListener('mousemove', doDrag);
     document.addEventListener('mouseup', endDrag);
 
-    // Touch events - use passive: true for touchstart, but capture touchmove if dragging
-    handle.addEventListener('touchstart', (e) => {
-        startDrag(e);
-    }, { passive: true });
-    
+    panel.addEventListener('touchstart', (e) => {
+        const forced = e.target === handle;
+        startDrag(e, forced);
+    }, { passive: false });
+
     document.addEventListener('touchmove', (e) => {
         if (isDragging) {
             e.preventDefault();
@@ -858,63 +907,40 @@ function setupMobilePanelDrag() {
     }, { passive: false });
     
     document.addEventListener('touchend', endDrag);
+}
 
-    // Tap/click handle to toggle open/close when not dragging
-    handle.addEventListener('click', () => {
-        if (isDragging || window.innerWidth > 768) return;
-        const isClosed = panel.classList.contains('closed') || panel.offsetHeight <= handleMinHeight + 2;
-        if (isClosed) {
-            panel.classList.remove('closed');
-            panel.classList.remove('expanded');
-            panel.style.height = '30%';
-        } else {
-            panel.classList.remove('expanded');
-            panel.classList.add('closed');
-            panel.style.height = `${handleMinHeight}px`;
-        }
-        updateBasemapTogglePosition();
+function setupMinimapControls() {
+    const mapEl = document.getElementById('map');
+    const expandBtn = document.getElementById('minimap-expand-btn');
+    if (!mapEl || !expandBtn) return;
+
+    const syncState = () => updateMinimapExpandState();
+
+    expandBtn.addEventListener('click', () => {
+        if (!document.body.classList.contains('street-mode')) return;
+        const nextState = !mapEl.classList.contains('minimap-expanded');
+        updateMinimapExpandState(nextState);
     });
+
+    mapEl.addEventListener('mouseleave', syncState);
+    updateMinimapExpandState(false);
+}
+
+function updateMinimapExpandState(forceState) {
+    const mapEl = document.getElementById('map');
+    const expandBtn = document.getElementById('minimap-expand-btn');
+    if (!mapEl || !expandBtn) return;
+
+    if (typeof forceState === 'boolean') {
+        mapEl.classList.toggle('minimap-expanded', forceState);
+    }
+
+    const isExpanded = mapEl.classList.contains('minimap-expanded');
+    expandBtn.setAttribute('aria-pressed', String(isExpanded));
+    expandBtn.setAttribute('aria-label', isExpanded ? 'ミニマップを縮小' : 'ミニマップを拡大');
 }
 
 // Prevent the basemap toggle button from colliding with the bottom sheet (mobile only)
-function updateBasemapTogglePosition() {
-    const toggle = document.getElementById('basemap-toggle');
-    const panel = document.getElementById('side-panel');
-    if (!toggle || !panel) return;
-
-    const isMobile = window.innerWidth <= 768;
-    if (!isMobile) {
-        toggle.style.bottom = '';
-        toggle.style.opacity = '';
-        toggle.style.pointerEvents = '';
-        return;
-    }
-
-    const windowHeight = window.innerHeight;
-    const panelHeight = panel.offsetHeight || 0;
-    const anchorBtn = document.getElementById('streetview-anchor-btn');
-    const anchorOffset = (anchorBtn ? anchorBtn.offsetHeight || 0 : 0) + 40;
-    const isClosed = panel.classList.contains('closed') || panelHeight <= 52;
-    const isExpanded = panel.classList.contains('expanded') || panelHeight >= windowHeight * 0.98;
-
-    if (isExpanded) {
-        // Panel covers screen; hide toggle under it
-        toggle.style.opacity = '0';
-        toggle.style.pointerEvents = 'none';
-        toggle.style.bottom = `${anchorOffset}px`;
-    } else if (isClosed) {
-        // Keep near bottom when closed
-        toggle.style.opacity = '1';
-        toggle.style.pointerEvents = '';
-        toggle.style.bottom = `${anchorOffset}px`;
-    } else {
-        // Place above the sheet top edge
-        const bottomPx = Math.min(windowHeight - 80, panelHeight + anchorOffset);
-        toggle.style.opacity = '1';
-        toggle.style.pointerEvents = '';
-        toggle.style.bottom = `${bottomPx}px`;
-    }
-}
 
 // Switch basemap - toggle watercolor overlay on/off (satellite always visible)
 function switchBasemap(basemap) {
@@ -1034,9 +1060,24 @@ function resolveStreetImage(item) {
     return `images/part2/${normalized}`;
 }
 
+function resolveStreetThumbnail(item) {
+    const panorama = resolveStreetImage(item);
+    if (!panorama) return '';
+    const normalized = panorama.replace(/\\/g, '/');
+    if (/^https?:\/\//i.test(normalized)) return normalized;
+    const match = normalized.match(/^(images\/part\d+\/)(.+)$/i);
+    if (match) {
+        const [, basePath, rest] = match;
+        if (!/^thumbs\//i.test(rest)) {
+            return `${basePath}thumbs/${rest}`;
+        }
+    }
+    return normalized;
+}
+
 function getStreetThumbnail(item) {
-    const pano = resolveStreetImage(item);
-    if (pano) return pano;
+    const thumbnail = resolveStreetThumbnail(item);
+    if (thumbnail) return thumbnail;
     const img = item?.imageUrl || item?.image;
     if (!img) return '';
     const normalized = String(img).trim().replace(/\\/g, '/');
@@ -1097,6 +1138,15 @@ function navigateStreetView(step) {
     }
 }
 
+function adjustStreetViewZoom(delta) {
+    if (!pannellumViewer || typeof pannellumViewer.getHfov !== 'function' || typeof pannellumViewer.setHfov !== 'function') {
+        return;
+    }
+    const current = pannellumViewer.getHfov();
+    const next = clampFov((Number.isFinite(current) ? current : 90) + delta);
+    pannellumViewer.setHfov(next, false);
+}
+
 function exitStreetView() {
     if (!streetViewState.active) return;
     streetViewState.currentItem = null;
@@ -1136,23 +1186,28 @@ function renderStreetViewer(item, panoramaUrl) {
 }
 
 function setStreetMode(isActive) {
+    const wasActive = streetViewState.active;
     streetViewState.active = isActive;
     const body = document.body;
     const overlay = document.getElementById('street-viewer');
     const infoPanel = document.getElementById('streetview-info-panel');
     const panelToggle = document.getElementById('streetview-panel-toggle');
     if (!body || !overlay) return;
-    if (isActive) {
+
+    if (isActive && !wasActive) {
         body.classList.add('street-mode');
         overlay.setAttribute('aria-hidden', 'false');
         hideStreetViewPopup();
         if (infoPanel) infoPanel.classList.remove('collapsed');
         if (panelToggle) panelToggle.setAttribute('aria-expanded', 'true');
-    } else {
+        updateMinimapExpandState(false);
+    } else if (!isActive && wasActive) {
         body.classList.remove('street-mode');
         overlay.setAttribute('aria-hidden', 'true');
+        updateMinimapExpandState(false);
     }
-    if (map) {
+
+    if (map && wasActive !== isActive) {
         requestAnimationFrame(() => map.resize());
         setTimeout(() => map && map.resize(), 420);
     }

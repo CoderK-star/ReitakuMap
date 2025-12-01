@@ -12,6 +12,7 @@
     <!-- Pannellum for 360° street view -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+     <script src="https://kit.fontawesome.com/YOUR_KIT_CODE.js" crossorigin="anonymous"></script>
     <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-Y4J0KEG3PF"></script>
 <script>
@@ -44,8 +45,8 @@
         }
 
         body.street-mode #map {
-            width: min(260px, 28vw);
-            height: min(260px, 28vw);
+            width: min(230px, 19.6vw);
+            height: min(230px, 19.6vw);
             top: 20px;
             right: auto;
             left: 20px;
@@ -54,6 +55,8 @@
             box-shadow: 0 20px 50px rgba(0,0,0,0.45);
             border: 2px solid rgba(255,255,255,0.3);
             z-index: 1300;
+            cursor: default;
+            transition: width 0.25s ease, height 0.25s ease, box-shadow 0.25s ease, border 0.25s ease;
         }
 
         body.street-mode #map::after {
@@ -63,6 +66,67 @@
             border: 2px dashed rgba(255,255,255,0.35);
             border-radius: 16px;
             pointer-events: none;
+        }
+
+        body.street-mode #map:hover,
+        body.street-mode #map.minimap-expanded {
+            width: min(420px, 26vw);
+            height: min(300px, 26vw);
+            box-shadow: 0 28px 60px rgba(0,0,0,0.55);
+        }
+
+        body.street-mode #map,
+        body.street-mode #map * {
+            cursor: default !important;
+        }
+
+        #minimap-expand-btn {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            z-index: 1350;
+            width: 30px;
+            height: 30px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.4);
+            background: rgba(5, 6, 10, 0.65);
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+            display: none;
+            transition: background 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+            padding: 0;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #minimap-expand-btn:hover {
+            background: rgba(33, 43, 72, 0.85);
+            transform: translateY(-1px);
+        }
+
+        #minimap-expand-btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+        }
+
+        #minimap-expand-btn svg {
+            width: 22px;
+            height: 22px;
+            display: block;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        #minimap-expand-btn svg rect {
+            stroke-opacity: 0.9;
+        }
+
+        body.street-mode #minimap-expand-btn {
+            display: inline-flex;
         }
 
         /* Site Logo */
@@ -147,7 +211,7 @@
             justify-content: center;
             cursor: pointer;
             transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15); 
         }
         .mic-btn svg { width: 20px; height: 20px; display: block; fill: currentColor; }
         .mic-btn:hover { transform: scale(1.05); background: #eee; }
@@ -229,36 +293,6 @@
             opacity: 0;
             pointer-events: none;
         }
-
-        #panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 12px;
-            padding: 12px 16px;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            pointer-events: auto;
-        }
-
-        .panel-header-text {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        #panel-header h2 {
-            font-size: 18px;
-            color: #1a237e;
-        }
-
-        #panel-count {
-            font-size: 13px;
-            color: #666;
-        }
-
 
         #panel-content {
             flex: 1;
@@ -445,7 +479,7 @@
             position: absolute;
             bottom: 110px;
             left: 20px;
-            z-index: 1000;
+            z-index: 500;
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
@@ -463,7 +497,7 @@
             position: absolute;
             bottom: 20px;
             left: 20px;
-            z-index: 1200;
+            z-index: 500;
             width: 62px;
             height: 62px;
             border-radius: 18px;
@@ -493,6 +527,12 @@
         #streetview-anchor-btn.active,
         body.street-mode #streetview-anchor-btn {
             background: linear-gradient(135deg, #5c6bc0, #1e88e5);
+        }
+
+        body.street-mode #streetview-anchor-btn {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(10px);
         }
 
         .basemap-btn {
@@ -625,22 +665,6 @@
                 padding: 6px 12px;
             }
 
-            #basemap-toggle {
-                bottom: calc(30% + 90px);
-                left: 10px;
-                transition: bottom 0.3s ease;
-            }
-
-            #side-panel.expanded ~ #basemap-toggle {
-                bottom: 90px;
-            }
-
-            /* When closed, bring basemap toggle down */
-            #side-panel.closed ~ #basemap-toggle {
-                bottom: 90px;
-            }
-
-
             .custom-marker {
                 width: 52px;
                 height: 52px;
@@ -672,10 +696,6 @@
         @media (max-width: 480px) {
             #side-panel {
                 height: 30%;
-            }
-
-            #basemap-toggle {
-                bottom: calc(30% + 90px);
             }
 
             .category-btn {
@@ -756,7 +776,7 @@
         #streetview-exit-btn {
             position: absolute;
             top: 20px;
-            right: 20px;
+            right: 90px;
             z-index: 1400;
             border: none;
             background: rgba(15,15,18,0.7);
@@ -1019,6 +1039,58 @@
             cursor: default;
         }
 
+        #street-viewer .pnlm-compass {
+            top: 20px;
+            right: 20px;
+            left: auto;
+            bottom: auto;
+        }
+
+        #streetview-topright-controls {
+            position: absolute;
+            top: 94px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            z-index: 1400;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            visibility: hidden;
+        }
+
+        body.street-mode #streetview-topright-controls {
+            opacity: 1;
+            pointer-events: auto;
+            visibility: visible;
+        }
+
+        .streetview-zoom-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 12px;
+            background: rgba(5, 6, 10, 0.65);
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .streetview-zoom-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 16px 34px rgba(0,0,0,0.4);
+        }
+
+        .streetview-zoom-btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+
         .streetview-chip {
             display: inline-block;
             padding: 4px 10px;
@@ -1034,11 +1106,41 @@
 
         @media (max-width: 768px) {
             body.street-mode #map {
-                width: min(48vw, 220px);
-                height: min(48vw, 220px);
+                width: min(33.6vw, 154px);
+                height: min(33.6vw, 154px);
                 left: 10px;
                 top: 10px;
                 bottom: auto;
+                transition: width 0.25s ease, height 0.25s ease, box-shadow 0.25s ease;
+            }
+
+            body.street-mode #map:hover,
+            body.street-mode #map.minimap-expanded {
+                width: min(50vw, 210px);
+                height: min(50vw, 210px);
+            }
+
+            #streetview-exit-btn {
+                top: 14px;
+                right: 92px;
+            }
+
+            #street-viewer .pnlm-compass {
+                top: 14px;
+                right: 14px;
+            }
+
+            #streetview-topright-controls {
+                top: 78px;
+                right: 14px;
+                gap: 8px;
+            }
+
+            #minimap-expand-btn {
+                top: 16px;
+                left: 16px;
+                width: 42px;
+                height: 42px;
             }
 
             #streetview-info-panel {
@@ -1067,6 +1169,14 @@
 <body>
     <!-- Map Container -->
     <div id="map"></div>
+    <button id="minimap-expand-btn" type="button" aria-pressed="false" aria-label="ミニマップを拡大">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M8 5H5v3" />
+            <path d="M16 5h3v3" />
+            <path d="M5 16v3h3" />
+            <path d="M19 16v3h-3" />
+        </svg>
+    </button>
 
     <!-- Loading Indicator -->
     <div id="loading">データを読み込み中...</div>
@@ -1100,12 +1210,6 @@
     <!-- Side Panel -->
     <div id="side-panel">
         <div id="panel-drag-handle"></div>
-        <div id="panel-header">
-            <div class="panel-header-text">
-                <h2>場所</h2>
-                <div id="panel-count">読み込み中...</div>
-            </div>
-        </div>
         <div id="panel-content">
             <!-- Panel items will be dynamically generated -->
         </div>
@@ -1117,6 +1221,10 @@
         <div id="street-viewer-canvas"></div>
         <button id="streetview-nav-prev" class="streetview-nav-btn" type="button" aria-label="前のスポット">&lsaquo;</button>
         <button id="streetview-nav-next" class="streetview-nav-btn" type="button" aria-label="次のスポット">&rsaquo;</button>
+            <div id="streetview-topright-controls">
+                <button id="streetview-zoom-in" class="streetview-zoom-btn" type="button" aria-label="ズームイン">+</button>
+                <button id="streetview-zoom-out" class="streetview-zoom-btn" type="button" aria-label="ズームアウト">-</button>
+            </div>
         <div id="streetview-info-panel">
             <button id="streetview-panel-toggle" type="button" aria-expanded="true" aria-label="情報パネルを折りたたむ"></button>
             <div class="streetview-info-content">
