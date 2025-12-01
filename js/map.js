@@ -800,13 +800,19 @@ function setupMobilePanelDrag() {
     let startY = 0;
     let startHeight = 0;
     let isDragging = false;
-    const handleMinHeight = 48; // keep handle visible when closed
+    const handleMinHeight = 64; // keep handle visible when closed
     const dragZone = 72; // px zone from top that can initiate drag
+
+    const isPanelClosed = () =>
+        panel.classList.contains('closed') || panel.offsetHeight <= handleMinHeight + 1;
 
     const getTouchPoint = (e) => (e.type.includes('touch') ? e.touches[0] : e);
 
     const withinDragZone = (point) => {
         const rect = panel.getBoundingClientRect();
+        if (isPanelClosed()) {
+            return point.clientY >= rect.top && point.clientY <= rect.bottom;
+        }
         return point.clientY <= rect.top + dragZone;
     };
 
@@ -890,22 +896,28 @@ function setupMobilePanelDrag() {
         });
     }
 
-    panel.addEventListener('mousedown', startDrag);
+    panel.addEventListener('mousedown', (e) => {
+        const forced = isPanelClosed();
+        startDrag(e, forced);
+    });
     document.addEventListener('mousemove', doDrag);
     document.addEventListener('mouseup', endDrag);
 
     panel.addEventListener('touchstart', (e) => {
-        const forced = e.target === handle;
+        const forced = e.target === handle || isPanelClosed();
         startDrag(e, forced);
     }, { passive: false });
 
-    document.addEventListener('touchmove', (e) => {
-        if (isDragging) {
-            e.preventDefault();
-            doDrag(e);
-        }
-    }, { passive: false });
+    const handleTouchMove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        doDrag(e);
+    };
+
+    panel.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
     
+    panel.addEventListener('touchend', endDrag);
     document.addEventListener('touchend', endDrag);
 }
 

@@ -487,6 +487,11 @@
             transition: opacity 0.3s ease;
         }
 
+        #basemap-toggle.mobile-stacked,
+        #streetview-anchor-btn.mobile-stacked {
+            transition: bottom 0.25s ease;
+        }
+
         body.street-mode #basemap-toggle {
             opacity: 0;
             pointer-events: none;
@@ -566,12 +571,16 @@
         /* Panel drag handle (mobile only) */
         #panel-drag-handle {
             display: none;
-            padding: 16px;
+            padding: 20px 24px;
             background: white;
             cursor: grab;
             pointer-events: auto;
             border-radius: 16px 16px 0 0;
             touch-action: none;
+            min-height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #panel-drag-handle:active {
@@ -581,10 +590,10 @@
         #panel-drag-handle::before {
             content: '';
             display: block;
-            width: 50px;
-            height: 4px;
+            width: 64px;
+            height: 6px;
             background: #ccc;
-            border-radius: 2px;
+            border-radius: 3px;
             margin: 0 auto;
         }
 
@@ -625,7 +634,7 @@
 
             /* Closed state: show only the handle height */
             #side-panel.closed {
-                height: 48px !important;
+                height: 64px !important;
                 border-radius: 16px 16px 0 0;
             }
 
@@ -647,8 +656,8 @@
             }
 
             .panel-item {
-                padding: 12px;
-                margin-bottom: 8px;
+                padding: 8px;
+                margin-bottom: 2px;
             }
 
             .panel-item-title {
@@ -678,6 +687,19 @@
 
             #search-input {
                 font-size: 14px;
+            }
+
+            #streetview-anchor-btn {
+                top: 60%;
+                bottom: auto;
+                left: 16px;
+                margin-top: -31px; /* center the 62px button vertically */
+            }
+
+            #basemap-toggle {
+                top: calc(60% - 130px);
+                bottom: auto;
+                left: 16px;
             }
         }
 
