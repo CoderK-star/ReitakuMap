@@ -36,6 +36,10 @@ let streetViewState = { active: false, currentItem: null, catalog: [], contextIt
 let pannellumViewer = null;
 let streetViewPopup = null;
 let lastMarkerItems = null;
+let loadingTextAnimation = null;
+let loadingGlowAnimation = null;
+
+document.addEventListener('DOMContentLoaded', initLoadingAnimation);
 
 // Initialize map when data is loaded
 window.initmap = function() {
@@ -387,6 +391,22 @@ function selectMarkerByCoordinates(lat, lon) {
     setSelectedMarker(target ? target.getElement() : null);
 }
 
+function focusMapOnItem(item, options = {}) {
+    if (!item || !Number.isFinite(item.lon) || !Number.isFinite(item.lat) || !map) return;
+    const {
+        zoom = 18,
+        duration = 1000
+    } = options;
+
+    map.flyTo({
+        center: [item.lon, item.lat],
+        zoom,
+        duration
+    });
+
+    selectMarkerByCoordinates(item.lat, item.lon);
+}
+
 function clearMarkerSelection() {
     setSelectedMarker(null);
     lastMarkerItems = null;
@@ -539,14 +559,8 @@ function updatePanelWithItems(items) {
                 }, 350); // Wait for panel transition to complete
             }
 
-            // Center map to the clicked item's location
-            map.flyTo({
-                center: [item.lon, item.lat],
-                zoom: 18,
-                duration: 1000
-            });
-
-            selectMarkerByCoordinates(item.lat, item.lon);
+            // Center the map/mini-map and highlight the marker
+            focusMapOnItem(item);
         });
 
         content.appendChild(itemEl);
@@ -659,13 +673,7 @@ function updateSidePanel(data) {
                 }, 350); // Wait for panel transition to complete
             }
 
-            map.flyTo({
-                center: [item.lon, item.lat],
-                zoom: 18,
-                duration: 1000
-            });
-
-            selectMarkerByCoordinates(item.lat, item.lon);
+            focusMapOnItem(item);
 
             // Find items at this location and update panel
             const filteredData = getFilteredData();
@@ -746,18 +754,16 @@ function setupEventListeners() {
         if (micBtn) micBtn.style.display = 'none';
     }
 
-    // Basemap toggle
-    const basemapButtons = document.querySelectorAll('.basemap-btn');
-    basemapButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const basemap = btn.dataset.basemap;
-            switchBasemap(basemap);
-            
-            // Update active state
-            basemapButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+    setupBasemapSwitch();
+
+    const campusLinkBtn = document.getElementById('campus-map-link');
+    if (campusLinkBtn) {
+        campusLinkBtn.addEventListener('click', () => {
+            window.open('https://www.reitaku-u.ac.jp/campuslife/campus-map/', '_blank', 'noopener,noreferrer');
+            campusLinkBtn.classList.add('active');
+            setTimeout(() => campusLinkBtn.classList.remove('active'), 600);
         });
-    });
+    }
 
     // Mobile panel drag functionality
     setupMobilePanelDrag();
@@ -921,6 +927,34 @@ function setupMobilePanelDrag() {
     document.addEventListener('touchend', endDrag);
 }
 
+function setupBasemapSwitch() {
+    const switchBtn = document.getElementById('basemap-switch');
+    if (!switchBtn) return;
+
+    const applyState = (mode) => {
+        const normalized = mode === 'satellite' ? 'satellite' : 'watercolor';
+        switchBtn.dataset.basemap = normalized;
+        switchBtn.classList.toggle('satellite-active', normalized === 'satellite');
+        switchBtn.classList.toggle('watercolor-active', normalized === 'watercolor');
+        switchBtn.setAttribute('aria-pressed', String(normalized === 'watercolor'));
+        switchBtn.setAttribute(
+            'aria-label',
+            normalized === 'watercolor'
+                ? '水彩を表示中。航空写真に切り替え'
+                : '航空写真を表示中。水彩に切り替え'
+        );
+    };
+
+    switchBtn.addEventListener('click', () => {
+        const current = switchBtn.dataset.basemap === 'satellite' ? 'satellite' : 'watercolor';
+        const next = current === 'watercolor' ? 'satellite' : 'watercolor';
+        switchBasemap(next);
+        applyState(next);
+    });
+
+    applyState(switchBtn.dataset.basemap || 'watercolor');
+}
+
 function setupMinimapControls() {
     const mapEl = document.getElementById('map');
     const expandBtn = document.getElementById('minimap-expand-btn');
@@ -987,10 +1021,19 @@ function showStreetViewPopup(lngLat, itemsAtMarker) {
 
     const container = document.createElement('div');
     container.className = 'streetview-popup-body';
+
     const label = document.createElement('p');
     label.className = 'streetview-popup-label';
     label.textContent = `${streetItems.length}件の360°スポット`;
     container.appendChild(label);
+
+    const locationName = getPopupLocationLabel(itemsAtMarker?.[0]);
+    if (locationName) {
+        const locationRow = document.createElement('p');
+        locationRow.className = 'streetview-popup-location';
+        locationRow.textContent = locationName;
+        container.appendChild(locationRow);
+    }
 
     streetViewPopup
         .setLngLat(lngLat)
@@ -1314,6 +1357,7 @@ function updateStreetViewInfoPanel() {
         card.appendChild(title);
 
         card.addEventListener('click', () => {
+            focusMapOnItem(spot, { duration: 800 });
             if (spot !== current) {
                 enterStreetView(spot, catalog);
             }
@@ -1388,15 +1432,75 @@ function getMostCommon(arr) {
     return mostCommon;
 }
 
+function initLoadingAnimation() {
+    if (typeof anime === 'undefined' || loadingTextAnimation) return;
+    const wordmark = document.getElementById('loading-wordmark');
+    if (!wordmark) return;
+    const letters = wordmark.querySelectorAll('.loading-letter');
+    if (!letters.length) return;
+
+    anime.set(letters, { opacity: 0, translateY: 24 });
+
+    loadingTextAnimation = anime.timeline({ loop: true, autoplay: true })
+        .add({
+            targets: letters,
+            translateY: [24, 0],
+            opacity: [0, 1],
+            scale: [0.85, 1],
+            easing: 'easeOutExpo',
+            delay: anime.stagger(75),
+            duration: 620
+        })
+        .add({
+            targets: letters,
+            translateY: [0, -14],
+            opacity: [1, 0],
+            easing: 'easeInQuint',
+            delay: anime.stagger(65, { from: 'center' }),
+            duration: 520
+        }, '+=260');
+
+    const glow = document.getElementById('loading-neon-glow');
+    if (glow) {
+        loadingGlowAnimation = anime({
+            targets: glow,
+            opacity: [0.2, 0.85],
+            scale: [0.85, 1.15],
+            easing: 'easeInOutSine',
+            direction: 'alternate',
+            loop: true,
+            duration: 1700
+        });
+    }
+}
+
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
+function getPopupLocationLabel(item) {
+    if (!item) return '';
+    const building = typeof item.building === 'string' ? item.building.trim() : '';
+    const location = typeof item.location === 'string' ? item.location.trim() : '';
+    if (building && location && building !== location) {
+        return `${building} ${location}`;
+    }
+    return building || location || item.title || '';
+}
+
 function hideLoading() {
     const loading = document.getElementById('loading');
     if (loading) loading.classList.add('hidden');
+    if (loadingTextAnimation) {
+        loadingTextAnimation.pause();
+        loadingTextAnimation = null;
+    }
+    if (loadingGlowAnimation) {
+        loadingGlowAnimation.pause();
+        loadingGlowAnimation = null;
+    }
 }
 
 function showError(message) {

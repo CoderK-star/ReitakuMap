@@ -12,6 +12,8 @@
     <!-- Pannellum for 360° street view -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+    <!-- anime.js for lightweight animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha512-3C8jyR8ZhjQ9cfzIAwvjHIBQ6azhbugzuDUFcAUlP2GdE47UTQ1bKQkNb4CDmZzsjtZxoAjtgWgpmGaI8B+DYg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
      <script src="https://kit.fontawesome.com/YOUR_KIT_CODE.js" crossorigin="anonymous"></script>
     <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-Y4J0KEG3PF"></script>
@@ -734,21 +736,68 @@
 
         /* Loading Indicator */
         #loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 20px 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 2000;
-            font-size: 16px;
-            color: #333;
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 20% 20%, rgba(55, 75, 139, 0.75), rgba(3, 6, 12, 0.95));
+            z-index: 2500;
+            overflow: hidden;
+            transition: opacity 0.45s ease;
         }
 
         #loading.hidden {
-            display: none;
+            opacity: 0;
+            pointer-events: none;
+            visibility: hidden;
+        }
+
+        #loading .loading-content {
+            text-align: center;
+            position: relative;
+            padding: 60px 40px;
+        }
+
+        #loading-neon-glow {
+            position: absolute;
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(92, 142, 255, 0.55), rgba(252, 32, 118, 0));
+            filter: blur(42px);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+        }
+
+        .loading-neon-text {
+            font-size: clamp(36px, 6vw, 68px);
+            letter-spacing: 0.18em;
+            font-weight: 700;
+            color: #f3f7ff;
+            text-transform: uppercase;
+            display: inline-flex;
+            gap: 0.05em;
+            text-shadow: 0 0 12px rgba(80, 180, 255, 0.9), 0 0 30px rgba(186, 104, 200, 0.7);
+            position: relative;
+            z-index: 1;
+        }
+
+        .loading-letter {
+            display: inline-block;
+            opacity: 0;
+        }
+
+        .loading-sub {
+            margin-top: 20px;
+            font-size: 14px;
+            letter-spacing: 0.4em;
+            color: rgba(255,255,255,0.75);
+            text-transform: uppercase;
+            position: relative;
+            z-index: 1;
         }
 
         /* Error Banner */
@@ -1201,7 +1250,24 @@
     </button>
 
     <!-- Loading Indicator -->
-    <div id="loading">データを読み込み中...</div>
+    <div id="loading" role="status" aria-live="polite">
+        <div class="loading-content">
+            <div id="loading-neon-glow" aria-hidden="true"></div>
+            <div class="loading-neon-text" id="loading-wordmark" aria-label="ReitakuMap">
+                <span class="loading-letter">R</span>
+                <span class="loading-letter">e</span>
+                <span class="loading-letter">i</span>
+                <span class="loading-letter">t</span>
+                <span class="loading-letter">a</span>
+                <span class="loading-letter">k</span>
+                <span class="loading-letter">u</span>
+                <span class="loading-letter">M</span>
+                <span class="loading-letter">a</span>
+                <span class="loading-letter">p</span>
+            </div>
+            <p class="loading-sub">Launching...</p>
+        </div>
+    </div>
 
     <!-- Error Banner -->
     <div id="error-banner"></div>
