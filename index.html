@@ -881,6 +881,24 @@
             transform: translateY(calc(100% - 48px));
         }
 
+        /* Streetview drag handle (mobile bottom-sheet style) */
+        #streetview-drag-handle {
+            position: absolute;
+            top: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 46px;
+            height: 5px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.55);
+            pointer-events: auto;
+            cursor: grab;
+        }
+
+        #streetview-info-panel.dragging #streetview-drag-handle {
+            cursor: grabbing;
+        }
+
         .streetview-info-content {
             display: flex;
             flex-direction: column;
@@ -895,11 +913,9 @@
 
         #streetview-panel-toggle {
             position: absolute;
-            top: 6px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 42px;
-            height: 24px;
+            top: 4px;
+            right: 14px;
+            height: 28px;
             border-radius: 999px;
             border: 1px solid rgba(255,255,255,0.4);
             background: rgba(255,255,255,0.12);
@@ -907,7 +923,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1;
+            z-index: 2;
+            padding: 0 10px;
+            gap: 6px;
+            font-size: 11px;
+            color: #fff;
+            white-space: nowrap;
         }
 
         #streetview-panel-toggle::before {
@@ -1314,7 +1335,8 @@
                 <button id="streetview-zoom-out" class="streetview-zoom-btn" type="button" aria-label="ズームアウト">-</button>
             </div>
         <div id="streetview-info-panel">
-            <button id="streetview-panel-toggle" type="button" aria-expanded="true" aria-label="情報パネルを折りたたむ"></button>
+            <div id="streetview-drag-handle" aria-hidden="true"></div>
+            <button id="streetview-panel-toggle" type="button" aria-expanded="true" aria-label="画面を隠す">画面を隠す</button>
             <div class="streetview-info-content">
                 <div class="streetview-info-main">
                     <div>

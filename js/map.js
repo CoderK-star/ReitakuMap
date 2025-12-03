@@ -338,7 +338,7 @@ function renderMarkersAndPanel() {
             .setLngLat([lon, lat])
             .addTo(map);
 
-        // Click handler: highlight with red ring and update panel
+        // Click handler: highlight with red ring, update panel, and (if possible) sync 360°ビュー
         el.addEventListener('click', () => {
             setSelectedMarker(el);
             // If mobile and panel is closed, open to 30%
@@ -351,12 +351,27 @@ function renderMarkersAndPanel() {
                     panelEl.style.height = '30%';
                 }
             }
+
             updatePanelWithItems(items);
             map.flyTo({
                 center: [lon, lat],
                 zoom: 18,
                 duration: 1000
             });
+
+            // ミニマップのマーカークリック時に360°ビューをその場所へ切り替える
+            const streetItems = items.filter(hasStreetView);
+            if (streetItems.length) {
+                // まだ360°モードでなければ、このマーカーの代表スポットで開始
+                if (!streetViewState.active) {
+                    enterStreetView(streetItems[0], items);
+                } else if (streetViewState.active) {
+                    // 既に360°モードなら、そのままシーケンスをこの地点に合わせて切り替え
+                    streetViewState.contextItems = items.filter(hasStreetView);
+                    const target = streetItems[0];
+                    enterStreetView(target, streetViewState.contextItems.length ? streetViewState.contextItems : streetViewState.catalog);
+                }
+            }
 
             showStreetViewPopup([lon, lat], items);
         });
@@ -786,15 +801,103 @@ function setupEventListeners() {
     if (panelToggle && infoPanel) {
         panelToggle.addEventListener('click', () => {
             const collapsed = infoPanel.classList.toggle('collapsed');
-            panelToggle.setAttribute('aria-expanded', String(!collapsed));
+            const expanded = !collapsed;
+            panelToggle.setAttribute('aria-expanded', String(expanded));
+            panelToggle.textContent = expanded ? '画面を隠す' : '画面を開く';
+            panelToggle.setAttribute('aria-label', expanded ? '画面を隠す' : '画面を開く');
         });
     }
+
+    // Mobile streetview info bottom-sheet drag
+    setupStreetviewPanelDrag();
 
     document.addEventListener('keydown', (evt) => {
         if (evt.key === 'Escape' && streetViewState.active) {
             exitStreetView();
         }
     });
+}
+
+// Mobile-only drag handle for streetview info panel
+function setupStreetviewPanelDrag() {
+    const panel = document.getElementById('streetview-info-panel');
+    const handle = document.getElementById('streetview-drag-handle');
+    if (!panel || !handle) return;
+
+    let startY = 0;
+    let startTranslate = 0; // 0 (fully open) to 1 (hidden except header)
+    let dragging = false;
+
+    const getPoint = (e) => (e.type.startsWith('touch') ? e.touches[0] : e);
+
+    const getCurrentTranslate = () => {
+        const style = window.getComputedStyle(panel);
+        const matrix = style.transform;
+        if (!matrix || matrix === 'none') return 0;
+        const match = matrix.match(/matrix\([^,]+,[^,]+,[^,]+,[^,]+,[^,]+,([^\)]+)\)/);
+        if (!match) return 0;
+        const ty = parseFloat(match[1]) || 0;
+        const height = panel.offsetHeight || 1;
+        return Math.max(0, Math.min(1, ty / height));
+    };
+
+    const applyTranslate = (ratio) => {
+        const clamped = Math.max(0, Math.min(1, ratio));
+        const height = panel.offsetHeight || 1;
+        const ty = clamped * height;
+        panel.style.transform = `translateY(${ty}px)`;
+        const collapsed = clamped > 0.7;
+        panel.classList.toggle('collapsed', collapsed);
+        const panelToggle = document.getElementById('streetview-panel-toggle');
+        if (panelToggle) {
+            const expanded = !collapsed;
+            panelToggle.setAttribute('aria-expanded', String(expanded));
+            panelToggle.textContent = expanded ? '画面を隠す' : '画面を開く';
+            panelToggle.setAttribute('aria-label', expanded ? '画面を隠す' : '画面を開く');
+        }
+    };
+
+    const onStart = (e) => {
+        const pt = getPoint(e);
+        dragging = true;
+        startY = pt.clientY;
+        startTranslate = getCurrentTranslate();
+        panel.classList.add('dragging');
+        panel.style.transition = 'none';
+        document.body.style.userSelect = 'none';
+        if (e.cancelable) e.preventDefault();
+    };
+
+    const onMove = (e) => {
+        if (!dragging) return;
+        const pt = getPoint(e);
+        const deltaY = pt.clientY - startY;
+        const height = panel.offsetHeight || 1;
+        const ratioDelta = deltaY / height;
+        applyTranslate(startTranslate + ratioDelta);
+        if (e.cancelable) e.preventDefault();
+    };
+
+    const onEnd = () => {
+        if (!dragging) return;
+        dragging = false;
+        panel.classList.remove('dragging');
+        panel.style.transition = 'transform 0.3s ease';
+        document.body.style.userSelect = '';
+
+        // Snap: open (0) or collapsed (~0.85)
+        const current = getCurrentTranslate();
+        const target = current > 0.35 ? 0.85 : 0;
+        applyTranslate(target);
+    };
+
+    handle.addEventListener('mousedown', onStart);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+
+    handle.addEventListener('touchstart', onStart, { passive: false });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
 }
 
 // Setup draggable panel for mobile
